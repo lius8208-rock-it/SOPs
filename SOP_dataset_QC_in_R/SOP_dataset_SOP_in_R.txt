@@ -1,0 +1,194 @@
+SOP for dataset Quality Control (QC)
+
+Needed libraries: tidyverse, skimr, nanir, lubridate
+
+1.	Load necessary libraries:
+
+library(tidyverse)
+library(skimr)
+library(naniar)
+library(lubridate)
+
+2.	Load your file
+
+File1 <- read.csv(file.choose(), stringsAsFactors=FALSE) #or
+File2 <- read.delim("file2.txt") #or
+File3 <- read.delim("file3.tsv", header = TRUE)
+
+3.	Inspect structure
+
+glimpse(File)
+skim(File)
+
+4.	Check missing value
+
+File %>% summarise_all(~sum(is.na(.)))
+vis_miss(File)  # visualize missingness
+
+5.	Validate data types
+
+sapply(File, class)
+
+6.	Check duplicates in unique IDs
+
+sum(duplicated(File$Patient_ID))
+
+7.	Identify outliers for numeric fields
+
+File %>% 
+     summarise(across(where(is.numeric), 
+                                   list(min = min, max = max, mean = mean, sd = sd), 
+                   na.rm = TRUE))
+
+
+
+8.	Factor levels check
+
+File %>% count(region)
+      unique(File$sex)
+
+9.	Date validation
+
+file %>% summarise(min_date = min(report_date, na.rm = TRUE),
+                 max_date = max(report_date, na.rm = TRUE))
+
+10.	Create a summary QC report
+qc_summary <- File %>%
+ summarise(
+  total_rows = n(),
+  missing_any = sum(!complete.cases(.)),
+  duplicates = sum(duplicated(Patient_ID)),
+  mean_age = mean(age, na.rm = TRUE),
+  invalid_dates = sum(symptom_onset > report_date, na.rm = TRUE)
+  )
+
+write_csv(qc_summary, "QC_summary.csv")
+
+
+##bonus
+
+1.	Check table header
+head(File)
+
+2.	Check numbers of columns of the file
+ncol(File)
+
+3.	Check number of rows of the file
+nrow(File)
+
+
+
+
+
+
+
+
+
+
+
+Example of NKA activity in ion-poor water condition
+
+> NKA_IP <- read.delim("/File_path/NKA_IP_2017_FF.csv", sep = "\t")
+> head(NKA_IP)
+     Region.Pop.NKAIP
+1 coasr,FRP1,2.056943
+2 coasr,FRP2,2.395011
+3 coasr,FRP3,3.200272
+4 coasr,FRP4,2.903362
+5 coasr,FRP5,3.558925
+6 coasr,FRP6,2.659396
+> ##Inspect file structure
+> glimpse(NKA_IP)
+Rows: 70
+Columns: 1
+$ Region.Pop.NKAIP <chr> "coasr,FRP1,2.056943", "coasr,FRP2,2.395011", "coasr,FRP3,3.200272", "coasr,FRP…
+> skim(NKA_IP)
+── Data Summary ────────────────────────
+                           Values
+Name                       NKA_IP
+Number of rows             70    
+Number of columns          1     
+_______________________          
+Column type frequency:           
+  character                1     
+________________________         
+Group variables            None  
+
+── Variable type: character ──────────────────────────────────────────────────────────────────────────────
+  skim_variable    n_missing complete_rate min max empty n_unique whitespace
+1 Region.Pop.NKAIP         0             1  16  20     0       70          0
+> NKA_IP <- read.delim("/File_path/NKA_IP_2017_FF.csv", sep="\t") %>%
++   # Separate the combined first column into multiple columns
++   separate(col = 1, into = c("Region", "Pop", "NKAIP"), 
++            sep = ",", convert = TRUE) %>%
++   # Clean up any whitespace
++   mutate(across(everything(), ~trimws(.)))
+> glimpse(NKA_IP)
+Rows: 70
+Columns: 3
+$ Region <chr> "coasr", "coasr", "coasr", "coasr", "coasr", "coasr", "coasr", "coasr", "coasr", "coasr",…
+$ Pop    <chr> "FRP1", "FRP2", "FRP3", "FRP4", "FRP5", "FRP6", "FRP7", "FRP8", "CR1", "CR2", "CR3", "CR4…
+$ NKAIP  <chr> "2.056943", "2.395011", "3.200272", "2.903362", "3.558925", "2.659396", "3.218156", "2.16…
+> ##Check missing value
+> NKA_IP %>% summarise_all(~sum(is.na(.)))
+  Region Pop NKAIP
+1      0   0     0
+> vis_miss(NKA_IP) ## graph the result, as the result is 0, there in not bar or anything showed on the graph
+> ##Validate data types
+> sapply(NKA_IP, class)
+     Region         Pop       NKAIP 
+"character" "character" "character" 
+> ##Check duplicates in unique IDs
+> sum(duplicated(NKA_IP$Pop))
+[1] 0
+> ##factor levels check
+> NKA_IP %>% count(Region)
+  Region  n
+1  coasl 20
+2  coasr 25
+3   inll 25
+> unique(NKA_IP$Region)
+[1] "coasr" "coasl" "inll" 
+> #	Identify outliers for numeric fields
+> NKA_IP %>% 
++   summarise(across(where(is.numeric), 
++                    list(min = min, max = max, mean = mean, sd = sd), 
++                    na.rm = TRUE))
+data frame with 0 columns and 1 row
+Warning message:
+There was 1 warning in `summarise()`.
+ℹ In argument: `across(...)`.
+Caused by warning:
+! The `...` argument of `across()` is deprecated as of dplyr 1.1.0.
+Supply arguments directly to `.fns` through an anonymous function instead.
+
+  # Previously
+  across(a:b, mean, na.rm = TRUE)
+
+  # Now
+  across(a:b, \(x) mean(x, na.rm = TRUE))
+This warning is displayed once every 8 hours.
+Call `lifecycle::last_lifecycle_warnings()` to see where this warning was generated. 
+> #	Identify outliers for numeric fields
+> NKA_IP <- NKA_IP %>%
++   mutate(NKAIP = as.numeric(NKAIP)) ##NKA_IP is character as indicated from above command
+> NKA_IP %>% 
++   summarise(across(where(is.numeric), 
++                    list(min = min, max = max, mean = mean, sd = sd), 
++                    na.rm = TRUE))
+  NKAIP_min NKAIP_max NKAIP_mean NKAIP_sd
+1  1.254103   6.80641   3.284215 1.343178
+> #	Date validation
+> NKA_IP %>% summarise(min_date = min(NKAIP, na.rm = TRUE),
++                    max_date = max(NKAIP, na.rm = TRUE))
+  min_date max_date
+1 1.254103  6.80641
+> qc_summary <- NKA_IP %>%
++   summarise(
++     total_rows = n(),
++     missing_any = sum(!complete.cases(.)),
++     duplicates = sum(duplicated(Pop)),
++     mean_NKAIP = mean(NKAIP, na.rm = TRUE),
++   )
+> write_csv(qc_summary, "/File_path/NKA_2017_FF/QC_summary.csv")
+                           
